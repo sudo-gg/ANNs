@@ -1,6 +1,7 @@
 import gzip
 import pickle
 import numpy as np
+# pickle converts python objects to bytes and gzip compresses them
 
 def loadData():
     f = gzip.open('data/mnist.pkl.gz','rb')
