@@ -9,8 +9,7 @@ trainingData, validationData, testData = DataLoader.loadDataWrapper()
 with open('network.pkl', 'rb') as f:
     net = pickle.load(f)
 
-net.SGD(trainingData,epochs=30, miniBatchSize=100, eta=2
-, testData=validationData)
+net.SGD(trainingData,epochs=30, miniBatchSize=100, eta=2, testData=validationData)
 
 with open('network.pkl', 'wb') as f:
     pickle.dump(net,f, protocol=pickle.HIGHEST_PROTOCOL)
