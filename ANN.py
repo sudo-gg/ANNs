@@ -98,18 +98,21 @@ class Network:
         # 4) backward pass
         nablaB[-1] = deltaL
         nablaW[-1] = np.dot(deltaL,activations[-2].transpose())
-        # iterating from the last layer backwards
-        for l in range(2, self.num_layers, -1):
-            z = zs[l]
-            delta_l = np.dot(self.weights[l].transpose(), deltaL) * sigmoid_(z)
-            nablaB[l] = delta_l
-            nablaW[l] = np.dot(delta_l, activations[l-1].transpose())
+        # -l = -2, -3, -4, etc. so we are going backwards through the layers
+        # we start at the second to last layer and go backwards (we have last layers error)
+        for l in range(2, self.num_layers):
+            z = zs[-l]
+            delta_l = np.dot(self.weights[-l+1].transpose(), deltaL) * sigmoid_(z)
+            nablaB[-l] = delta_l # grad for the biases
+            nablaW[-l] = np.dot(delta_l, activations[-l-1].transpose())
         return (nablaB, nablaW)
 
     def cost_(self, outputActivations, y):
         # partial C_x / partial a
         return (outputActivations-y)
     
+  # Will add cross entropy cost function later
+
     def evaluate(self,testData):
         testResults = [(np.argmax(self.feedforward(x)), y) for (x, y) in testData]
         return sum(int(x == y) for (x, y) in testResults)
