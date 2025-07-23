@@ -1,6 +1,12 @@
 import numpy as np
 import random
 
+def activationFunc(z):
+    return sigmoid(z)
+
+def activationFunc_(z):
+    return sigmoid_(z)
+
 def sigmoid(z):
     return 1.0/(1.0+np.exp(-z))
 
@@ -12,6 +18,15 @@ def Relu(z):
 
 def LeakyRelu(z):
     return max(0.01*z,z)
+
+def LeakyRelu_(z):
+    return 1 if z > 0 else 0.01
+
+def softmax(z):
+    # z is a vector
+    expz = np.exp(z - np.max(z)) # subtract max for numerical stability (reduces overflow risk)
+    return expz / expz.sum(axis=0) # sum along the first axis (columns) (all elements in the vector)
+
 
 class Network:
     def __init__(self,sizes):
@@ -30,7 +45,7 @@ class Network:
         # a is a (n,1) numpy nD array input
         # (basically run the ANN on the input function)
         for b,w in zip(self.biases,self.weights):
-            a = sigmoid(np.dot(w,a)+b)
+            a = activationFunc(np.dot(w,a)+b)
         return a
 
     def SGD(self,trainingData,epochs,miniBatchSize,eta,testData=None):
@@ -86,7 +101,7 @@ class Network:
         for b, w in zip(self.biases,self.weights):
             z = np.dot(w, activation)+b
             zs.append(z)
-            activation = sigmoid(z)
+            activation = activationFunc(z)
             activations.append(activation)
         
         # 3) output error (error for last layer hence last
@@ -94,7 +109,7 @@ class Network:
         # so this error vector is the proportional change to the biases
         # (and weights when accounting for the activation of the previous layer)
         # refer to below for what partial C_x / partial a is
-        deltaL = self.cost_(activations[-1],y) * sigmoid_(zs[-1])
+        deltaL = self.cost_(activations[-1],y) * activationFunc_(zs[-1])
         # 4) backward pass
         nablaB[-1] = deltaL
         nablaW[-1] = np.dot(deltaL,activations[-2].transpose())
@@ -102,7 +117,7 @@ class Network:
         # we start at the second to last layer and go backwards (we have last layers error)
         for l in range(2, self.num_layers):
             z = zs[-l]
-            delta_l = np.dot(self.weights[-l+1].transpose(), deltaL) * sigmoid_(z)
+            delta_l = np.dot(self.weights[-l+1].transpose(), deltaL) * activationFunc_(z)
             nablaB[-l] = delta_l # grad for the biases
             nablaW[-l] = np.dot(delta_l, activations[-l-1].transpose())
         return (nablaB, nablaW)
