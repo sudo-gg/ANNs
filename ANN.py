@@ -1,6 +1,7 @@
 import numpy as np
 import random
 
+# I will look at making this more modular later
 def activationFunc(z):
     return sigmoid(z)
 
@@ -13,8 +14,11 @@ def sigmoid(z):
 def sigmoid_(z):
     return sigmoid(z)*(1-sigmoid(z))
 
-def Relu(z):
-    return max(0,z)
+def ReLU(z):
+    return np.maximum(z, 0)
+
+def ReLU_(z):
+    return (z > 0).astype(int)
 
 def LeakyRelu(z):
     return max(0.01*z,z)
