@@ -26,6 +26,12 @@ def LeakyRelu(z):
 def LeakyRelu_(z):
     return 1 if z > 0 else 0.01
 
+def tanh(z):
+    return np.tanh(z)
+
+def tanh_(z):
+    return 1 - np.tanh(z)**2
+
 def softmax(z):
     # z is a vector
     expz = np.exp(z - np.max(z)) # subtract max for numerical stability (reduces overflow risk)
@@ -127,11 +133,20 @@ class Network:
         return (nablaB, nablaW)
 
     def cost_(self, outputActivations, y):
-        # partial C_x / partial a
-        return (outputActivations-y)
+        return self.quadraticCost_(outputActivations, y)
+
+    def quadraticCost_(self, outputActivations, y):
+        # Del C_x (w.r.t. a) = ∂C_x / ∂a
+        return (outputActivations - y)
+    
+    def crossEntropyCost_(self, outputActivations, y):
+        # del 
+        pass
     
   # Will add cross entropy cost function later
 
     def evaluate(self,testData):
         testResults = [(np.argmax(self.feedforward(x)), y) for (x, y) in testData]
         return sum(int(x == y) for (x, y) in testResults)
+    
+    

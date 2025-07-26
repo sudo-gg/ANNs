@@ -1,6 +1,7 @@
 import gzip
 import pickle
 import numpy as np
+from skimage.io import imshow, imread
 # pickle converts python objects to bytes and gzip compresses them
 
 def loadData():
@@ -38,9 +39,14 @@ def loadDataWrapper():
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
     traindata, valdata, testdata = loadDataWrapper()
     print(traindata[2][1]) 
+    image3 = np.reshape(traindata[2][0],(28, 28))
+    plt.imshow(image3)
+    plt.show()
     # print(vectorizedResult(5))
     # print(np.reshape(traindata[0][0], (784, 1)))
     # print(valdata)
     # print(testdata)
+    # create a figure and axis
