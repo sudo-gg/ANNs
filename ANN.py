@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import random
 
@@ -37,116 +38,159 @@ def softmax(z):
     expz = np.exp(z - np.max(z)) # subtract max for numerical stability (reduces overflow risk)
     return expz / expz.sum(axis=0) # sum along the first axis (columns) (all elements in the vector)
 
+class CrossEntropyCost:
+
+    @staticmethod
+    def fn(a,y):
+        # accepts y as a one-hot vector
+        return np.sum(np.nan_to_num(-y*np.log(a) - (1-y)*np.log(1-a)))
+    
+    # returns the derivative of the cost function w.r.t. z (our delta vector)
+    @staticmethod
+    def delta(z,a,y):
+        # accepts y as a one-hot vector
+        # z included for generalisation
+        return a-y
+    
+class QuadraticCost:
+
+    @staticmethod
+    def fn(a,y):
+        return 0.5*np.linalg.norm(a-y)**2 
+    
+    @staticmethod
+    def delta(z, a, y):
+        return (a-y) * sigmoid_(z)
 
 class Network:
-    def __init__(self,sizes):
-        # so sizes = [sizelayer1,sizelayer2,ect...]
+    def __init__(self, sizes, cost=CrossEntropyCost):
         self.num_layers = len(sizes)
         self.sizes = sizes
-        self.biases = [np.random.randn(y, 1) for y in sizes[1:]]
-        # self.weights are matrices of weights
-        self.weights = [np.random.randn(y, x) for x,y in zip(sizes[:-1],sizes[1:])]
-        # y is the number of neurons in the next layer
-        # x is the number of neurons in the current layer
+        self.LeCunInit()
+        self.cost = cost
 
+    def largeRandomInit(self):
+        self.biases = [np.random.randn(y, 1) for y in self.sizes[1:]]
+        self.weights = [np.random.randn(y, x) for x,y in zip(self.sizes[:-1],self.sizes[1:])]
+    
+    def LeCunInit(self):
+        self.biases = [np.random.randn(y, 1) for y in self.sizes[1:]]
+        self.weights = [np.random.randn(y, x)/np.sqrt(x) for x,y in zip(self.sizes[:-1],self.sizes[1:])]
 
-    def feedforward(self,a):
-        # applies the activation function to each layer and returns the output
-        # a is a (n,1) numpy nD array input
-        # (basically run the ANN on the input function)
-        for b,w in zip(self.biases,self.weights):
-            a = activationFunc(np.dot(w,a)+b)
+    def feedforward(self, a):
+        for b, w in zip(self.biases, self.weights):
+            a = activationFunc(np.dot(w, a) + b)
         return a
+    
+    def total_cost(self, data, test=False):
+        """Calculate total cost across all samples in data"""
+        cost = 0.0
+        for x, y in data:
+            a = self.feedforward(x)
+            if test:  # For test/validation data with integer labels
+                y_vec = np.zeros((self.sizes[-1], 1))
+                y_vec[y] = 1
+                cost += self.cost.fn(a, y_vec)
+            else:  # For training data with one-hot vectors
+                cost += self.cost.fn(a, y)
+        return cost / len(data)
 
-    def SGD(self,trainingData,epochs,miniBatchSize,eta,testData=None):
-        # trainingData is a list of tuples (x,y)
-        # epochs is the number of times the trainingData is passed through the network
-        # eta (η) is the learning rate (the step size)
+    def SGD(self, trainingData, epochs, miniBatchSize, eta,
+            lmbda=0,
+            testData=None,
+            monitorTestCost=False,
+            monitorTestAccuracy=False,
+            monitorTrainingCost=False,
+            monitorTrainingAccuracy=False):
+
+        
         if testData: 
             nTest = len(testData)
         n = len(trainingData)
+        testCost, testAccuracy, trainingCost, trainingAccuracy = [], [], [], []
+        
         for i in range(epochs):
             random.shuffle(trainingData)
             miniBatches = [trainingData[k:k+miniBatchSize]
-                           for k in range(0,n,miniBatchSize)]
+                           for k in range(0, n, miniBatchSize)]
+            
             for miniBatch in miniBatches:
-                # updates the weights and biases according to a single iteration
-                # of mini-batch gradient descent
-                self.updateMiniBatch(miniBatch,eta)
+                self.updateMiniBatch(miniBatch, eta, lmbda)
+            
+            print(f"Epoch {i} complete", end="")
+            
             if testData:
-                print(f"Epoch {i}: {self.evaluate(testData)} / {nTest}")
-            else:
-                print(f"Epoch {i} complete")
+                if monitorTestCost:
+                    cost = self.total_cost(testData, test=True)
+                    testCost.append(cost)
+                    print(f" - Test cost: {cost:.4f}", end="")
+                
+                if monitorTestAccuracy:
+                    acc = self.evaluate(testData)
+                    testAccuracy.append(acc)
+                    print(f" - Test accuracy: {acc}", end="")
+                
+                if monitorTrainingCost:
+                    cost = self.total_cost(trainingData[:1000])  # Sample for speed
+                    trainingCost.append(cost)
+                    print(f" - Training cost: {cost:.4f}", end="")
+                
+                if monitorTrainingAccuracy:
+                    acc = self.evaluate(trainingData, test=False)  # Sample for speed
+                    trainingAccuracy.append(acc)
+                    print(f" - Training accuracy: {acc}", end="")
+            
+            print() 
+            
+        return testCost, testAccuracy, trainingCost, trainingAccuracy
     
-    def updateMiniBatch(self, miniBatch, eta):
-        # ∇b and ∇w are lists of numpy arrays the same length as self.biases and self.weights
-        # np.zeros accepts a tuple as an argument and returns an array of zeros with the same shape
+    def updateMiniBatch(self, miniBatch, eta, lmbda):
         nablaB = [np.zeros(b.shape) for b in self.biases]
         nablaW = [np.zeros(w.shape) for w in self.weights]
+        
         for x, y in miniBatch:
-            # so x is the training example and y is the training label (x is input and y is output)
             dNablaB, dNablaW = self.backprop(x, y) 
-            #adds all the contributions to the nablaB and nablaW which were initally empty as
-            # this is the change in our biases and weights
             nablaB = [nb + dnb for nb, dnb in zip(nablaB, dNablaB)]
             nablaW = [nw + dnw for nw, dnw in zip(nablaW, dNablaW)]
-        # update the weights and biases based on our calculated step
-        self.weights = [w-(eta/len(miniBatch))*nw
+        
+        self.weights = [(1-eta*(lmbda/len(miniBatch)))*w - (eta/len(miniBatch))*nw
                         for w, nw in zip(self.weights, nablaW)]
         self.biases = [b - (eta/len(miniBatch))*nb
                        for b, nb in zip(self.biases, nablaB)]
 
-    def backprop(self,x, y):
-        # returns a tuple (NablaB, NablaW) representing the gradient for the cost function C_x
-        # where NablaB and NablaW are lists of numpy arrays with the same dimensions as self.weights and self.biases to be 
-        # added as you can see above in updateMiniBatch
+    def backprop(self, x, y):
         nablaB = [np.zeros(b.shape) for b in self.biases]
         nablaW = [np.zeros(w.shape) for w in self.weights]
-        # 1)activation contains the outputs of each layer (a(z))
+        
         activation = x
-        activations = [x] # list to store all the activations
-        zs = [] # list to store all the z vectors
-        # 2) feedforward (essentially we just let the neural network do its thing and record the values
-        # of each layer)
-        for b, w in zip(self.biases,self.weights):
-            z = np.dot(w, activation)+b
+        activations = [x]
+        zs = []
+        
+        for b, w in zip(self.biases, self.weights):
+            z = np.dot(w, activation) + b
             zs.append(z)
             activation = activationFunc(z)
             activations.append(activation)
         
-        # 3) output error (error for last layer hence last
-        # activation being compared with desired output)
-        # so this error vector is the proportional change to the biases
-        # (and weights when accounting for the activation of the previous layer)
-        # refer to below for what partial C_x / partial a is
-        deltaL = self.cost_(activations[-1],y) * activationFunc_(zs[-1])
-        # 4) backward pass
+        deltaL = self.cost.delta(zs[-1], activations[-1], y)
         nablaB[-1] = deltaL
-        nablaW[-1] = np.dot(deltaL,activations[-2].transpose())
-        # -l = -2, -3, -4, etc. so we are going backwards through the layers
-        # we start at the second to last layer and go backwards (we have last layers error)
+        nablaW[-1] = np.dot(deltaL, activations[-2].transpose())
+        
         for l in range(2, self.num_layers):
             z = zs[-l]
-            delta_l = np.dot(self.weights[-l+1].transpose(), deltaL) * activationFunc_(z)
-            nablaB[-l] = delta_l # grad for the biases
-            nablaW[-l] = np.dot(delta_l, activations[-l-1].transpose())
+            deltaL = np.dot(self.weights[-l+1].transpose(), deltaL) * activationFunc_(z)
+            nablaB[-l] = deltaL
+            nablaW[-l] = np.dot(deltaL, activations[-l-1].transpose())
+        
         return (nablaB, nablaW)
-
-    def cost_(self, outputActivations, y):
-        return self.quadraticCost_(outputActivations, y)
-
-    def quadraticCost_(self, outputActivations, y):
-        # Del C_x (w.r.t. a) = ∂C_x / ∂a
-        return (outputActivations - y)
     
-    def crossEntropyCost_(self, outputActivations, y):
-        # del 
-        pass
-    
-  # Will add cross entropy cost function later
-
-    def evaluate(self,testData):
-        testResults = [(np.argmax(self.feedforward(x)), y) for (x, y) in testData]
-        return sum(int(x == y) for (x, y) in testResults)
-    
-    
+    def evaluate(self, data, test=True):
+        if test:
+            # Test/validation data: y is integer label
+            results = [(np.argmax(self.feedforward(x)), y) for (x, y) in data]
+        else:
+            # Training data: y is one-hot vector
+            results = [(np.argmax(self.feedforward(x)), np.argmax(y)) for (x, y) in data]
+        
+        return sum(int(x == y) for (x, y) in results) / len(results)
+     
